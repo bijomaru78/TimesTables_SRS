@@ -1,783 +1,297 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Times Tables SRS</title>
 <style>
-  :root{
-    --bg:#0f1115; --panel:#171a21; --ink:#e8ecf1; --muted:#a7b0bd; --accent:#58a6ff; --good:#2ea043; --bad:#f85149; --warn:#d29922;
-    --shadow:0 8px 30px rgba(0,0,0,.35);
-  }
-  @media (prefers-color-scheme: light){
-    :root{ --bg:#f6f8fa; --panel:#ffffff; --ink:#0a0c10; --muted:#5a646f; --accent:#0969da; --good:#1a7f37; --bad:#d1242f; --warn:#9a6700;
-           --shadow:0 8px 24px rgba(0,0,0,.12); }
-  }
-  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
-  html,body{height:100%}
-  body{
-    margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;
-    background:var(--bg); color:var(--ink);
-    padding-bottom: env(safe-area-inset-bottom);
-    touch-action: manipulation;
-  }
-
-  .wrap{max-width:980px; margin:0 auto; padding:16px; padding-left: max(16px, env(safe-area-inset-left)); padding-right:max(16px, env(safe-area-inset-right))}
-  .card{background:var(--panel); border:1px solid #00000014; border-radius:16px; padding:18px; box-shadow:var(--shadow)}
-  h1{margin:0 0 8px; font-size:24px}
-  .row{display:flex; gap:12px; flex-wrap:wrap; align-items:center}
-  .row + .row{margin-top:12px}
-  label{font-size:14px; color:var(--muted)}
-  select, input[type="number"], textarea{
-    background:#12141a10; border:1px solid #00000022; color:var(--ink); padding:12px 14px; border-radius:12px; outline:none;
-    font-size:17px; /* >=16px prevents iOS zoom */
-  }
-  select:focus, input:focus, textarea:focus{border-color:var(--accent)}
-  button{
-    border:1px solid #00000020; background:var(--accent); color:white; padding:12px 16px; border-radius:12px; cursor:pointer; font-weight:600;
-    transition:transform .06s ease; font-size:17px; min-height:44px; /* Apple HIG touch size */
-  }
-  button:active{transform:scale(.98)}
-  button.ghost{background:transparent; color:var(--accent)}
-  button.good{background:var(--good)}
-  button.bad{background:var(--bad)}
-  button.warn{background:var(--warn)}
-  button:disabled{opacity:.6; cursor:not-allowed}
-  .pill{display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border-radius:999px; font-size:13px; border:1px solid #00000020}
-  .pill.timer{font-weight:700}
-  .pill.timer.warn{background:linear-gradient(90deg, #d2992222, transparent)}
-  .pill.timer.crit{background:linear-gradient(90deg, #f8514922, transparent)}
-  .stat{display:grid; grid-template-columns:repeat(4,1fr); gap:8px}
-  .stat .card{padding:12px}
-  .bigQ{font-size:54px; font-weight:800; letter-spacing:.5px; text-align:center; margin:10px 0 6px}
-  .answerRow{display:flex; gap:10px; justify-content:center; align-items:center}
-  .answerRow input{font-size:28px; text-align:center; width:180px}
-  .kbd{display:grid; grid-template-columns:repeat(3,minmax(64px,1fr)); gap:10px; justify-content:center; margin-top:10px}
-  .kbd button{font-size:22px; padding:14px 0}
-  .sep{height:1px; background:#0000001a; margin:14px 0}
-  .hint{font-size:13px; color:var(--muted)}
-  .flex{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-  .grow{flex:1}
-  textarea{width:100%; min-height:140px; resize:vertical}
-  .tag{padding:6px 10px; border-radius:10px; border:1px solid #0000002a; font-size:13px}
-  .center{text-align:center}
-  .choices{display:flex; gap:12px; justify-content:center; margin-top:12px; flex-wrap:wrap}
-  .choices button{min-width:120px; font-size:22px; padding:14px 18px}
-
-  /* Sticky header controls on mobile */
-  .controls{
-    position:sticky; top:0; z-index:20; backdrop-filter:saturate(120%) blur(8px);
-    background:linear-gradient( to bottom, rgba(23,26,33,.85), rgba(23,26,33,.6) );
-    border:1px solid #00000025; border-radius:16px; padding:10px;
-  }
-  @media (prefers-color-scheme: light){
-    .controls{ background:linear-gradient( to bottom, rgba(255,255,255,.85), rgba(255,255,255,.7) ); }
-  }
-
-  /* Modal */
-  .modal{position:fixed; inset:0; display:none; align-items:center; justify-content:center; padding:20px; background:rgba(0,0,0,.5); z-index:50}
-  .modal .sheet{max-width:980px; width:100%; max-height:85vh; overflow:auto}
-  table{width:100%; border-collapse:collapse; font-size:14px}
-  th, td{padding:10px 12px; border-bottom:1px solid #00000014}
-  th{position:sticky; top:0; background:var(--panel); text-align:left}
-  tr.badrow td{background:linear-gradient(90deg, #f8514918, transparent)}
-  .right{text-align:right}
-
-  /* Correct flash */
-  @keyframes flashPulse {
-    0% { box-shadow: 0 0 0 0 rgba(46,160,67, .5); }
-    100%{ box-shadow: 0 0 0 14px rgba(46,160,67, 0); }
-  }
-  .flash-correct{ animation: flashPulse .35s ease-out 2; }
-
-  /* Mobile typography */
-  @media (max-width: 480px){
-    h1{font-size:20px}
-    .bigQ{font-size:40px}
-    .stat{grid-template-columns:repeat(2,1fr)}
-  }
+:root{
+ --bg:#0f1115;--panel:#171a21;--ink:#e8ecf1;--muted:#a7b0bd;--accent:#58a6ff;
+ --good:#2ea043;--bad:#f85149;--warn:#d29922;--shadow:0 8px 30px rgba(0,0,0,.35)
+}
+@media(prefers-color-scheme:light){
+ :root{--bg:#f6f8fa;--panel:#fff;--ink:#0a0c10;--muted:#5a646f;--accent:#0969da;
+ --good:#1a7f37;--bad:#d1242f;--warn:#9a6700;--shadow:0 8px 24px rgba(0,0,0,.12)}
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;
+background:var(--bg);color:var(--ink);padding:16px;touch-action:manipulation}
+.card{background:var(--panel);border-radius:16px;box-shadow:var(--shadow);
+padding:18px;margin-bottom:12px}
+h1{margin:0 0 6px;font-size:22px}
+button,select,input{font-size:17px;border-radius:12px;min-height:44px}
+button{background:var(--accent);color:#fff;border:none;padding:10px 14px;cursor:pointer}
+button.ghost{background:transparent;color:var(--accent)}
+button.good{background:var(--good)}button.bad{background:var(--bad)}button.warn{background:var(--warn)}
+select,input{border:1px solid #0002;padding:10px 12px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:sticky;top:0;z-index:10;background:var(--bg);padding-bottom:6px}
+.bigQ{font-size:48px;font-weight:800;text-align:center;margin:10px 0}
+.choices{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+.choices button{min-width:110px;font-size:22px}
+.answerRow{display:flex;gap:8px;justify-content:center;align-items:center}
+.answerRow input{font-size:28px;text-align:center;width:150px}
+.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px}
+.center{text-align:center}.hint{font-size:13px;color:var(--muted)}
+textarea{width:100%;min-height:140px;padding:10px;border-radius:10px;border:1px solid #0002;background:#0001;color:var(--ink);font-size:14px}
+.modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);padding:16px;z-index:30}
+.modal .sheet{background:var(--panel);padding:16px;border-radius:16px;max-width:900px;max-height:85vh;overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px 10px;border-bottom:1px solid #0002;text-align:left}
+tr.badrow td{background:rgba(248,81,73,.08)}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <!-- Header -->
-  <div class="row controls">
-    <div class="grow">
-      <h1 style="margin-bottom:4px">Times Tables SRS</h1>
-      <div class="hint"></div>
-    </div>
-    <div class="flex">
-      <label>Profile</label>
-      <select id="profileSelect" title="Choose or add a profile"></select>
-      <button id="addProfileBtn" class="ghost" title="Add a new profile">＋</button>
-      <button id="delProfileBtn" class="ghost" title="Delete current profile">🗑</button>
 
-      <label>Table</label>
-      <select id="tableSize">
-        <option value="10">10 × 10</option>
-        <option value="12" selected>12 × 12</option>
-      </select>
-
-      <label>Mode</label>
-      <select id="modeSelect" title="Typing or Multiple Choice">
-         <option value="mc">Multiple choice</option>
-		 <option value="typing" selected>Typing</option>
-      </select>
-
-      <label>Timer</label>
-      <select id="timerSelect" title="Per-question time limit">
-        <option value="off">Off</option>
-        <option value="5">5s</option>
-        <option value="10">10s</option>
-      </select>
-
-      <button id="startBtn">Start</button>
-    </div>
-  </div>
-
-  <div class="sep"></div>
-
-  <!-- Stats -->
-  <div class="row stat">
-    <div class="card center">
-      <div class="pill">Due now</div>
-      <div id="dueNow" style="font-size:24px; font-weight:700; margin-top:6px">–</div>
-    </div>
-    <div class="card center">
-      <div class="pill">Answered today</div>
-      <div id="ansToday" style="font-size:24px; font-weight:700; margin-top:6px">–</div>
-    </div>
-    <div class="card center">
-      <div class="pill">Correct rate</div>
-      <div id="accRate" style="font-size:24px; font-weight:700; margin-top:6px">–</div>
-    </div>
-    <div class="card center">
-      <div class="pill">Next due</div>
-      <div id="nextDueIn" style="font-size:24px; font-weight:700; margin-top:6px">–</div>
-    </div>
-  </div>
-
-  <div class="sep"></div>
-
-  <!-- Quiz -->
-  <div class="card" id="quizCard" style="display:none">
-    <div class="row" style="justify-content:space-between; align-items:center">
-      <div class="tag" id="factMeta">streak – • ease – • interval –</div>
-      <div class="flex">
-        <div class="pill timer" id="timerPill" style="display:none; margin-right:6px">⏱</div>
-        <button class="ghost" id="pauseBtn" title="Pause/Resume the timer and inputs">Pause</button>
-        <button class="ghost" id="stopBtn"  title="End session without grading current card">Stop</button>
-      </div>
-    </div>
-
-    <div class="bigQ" id="question">3 × 7 = ?</div>
-
-    <!-- Typing mode -->
-    <div class="answerRow" id="typingRow">
-      <input id="answerInput" type="number" inputmode="numeric" placeholder="Your answer" />
-      <button id="submitBtn">Check</button>
-      <button class="ghost" id="dontKnowBtn" title="Mark wrong and reschedule sooner">I don't know</button>
-    </div>
-    <div class="kbd" id="keypad">
-      <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
-      <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
-      <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
-      <button data-k="←">←</button><button data-k="0">0</button><button data-k="⏎">⏎</button>
-    </div>
-
-    <!-- Multiple-choice mode -->
-    <div class="choices" id="choicesRow" style="display:none"></div>
-  </div>
-
-  <!-- Done -->
-  <div class="card" id="doneCard" style="display:none">
-    <div class="row" style="justify-content:center">
-      <div class="bigQ">🎉 All caught up!</div>
-    </div>
-    <div class="center hint">No cards are due. You can still practise the nearest-due item with “Practice anyway”.</div>
-    <div class="row" style="justify-content:center; margin-top:10px">
-      <button id="practiceAnywayBtn" class="ghost">Practice anyway</button>
-    </div>
-  </div>
-
-  <div class="sep"></div>
-
-  <!-- Tools -->
-  <div class="row card">
-    <div class="grow">
-      <div class="flex">
-        <button id="dailyReportBtn" class="ghost">Daily report</button>
-        <button id="deckReportBtn" class="ghost">Deck report</button>
-        <span class="grow"></span>
-        <button id="resetBtn" class="warn">Reset deck</button>
-        <button id="exportBtn" class="ghost">Export</button>
-        <button id="importBtn" class="ghost">Import</button>
-      </div>
-      <div id="ioBox" style="display:none; margin-top:12px">
-        <textarea id="ioText" placeholder="Exported JSON will appear here, or paste JSON here to import."></textarea>
-        <div class="flex" style="margin-top:8px; justify-content:flex-end">
-          <button id="ioClose" class="ghost">Close</button>
-        </div>
-      </div>
-    </div>
-  </div>
+<div class="controls">
+ <h1 class="grow">Times Tables SRS</h1>
+ <label>Profile</label><select id="profileSelect"></select>
+ <button id="addProfileBtn" class="ghost">＋</button>
+ <button id="delProfileBtn" class="ghost">🗑</button>
+ <label>Table</label><select id="tableSize"><option value="10">10×10</option><option value="12" selected>12×12</option></select>
+ <label>Mode</label><select id="modeSelect"><option value="typing" selected>Typing</option><option value="mc">Multiple</option></select>
+ <label>Timer</label><select id="timerSelect"><option value="off">Off</option><option value="5">5 s</option><option value="10">10 s</option></select>
+ <button id="startBtn">Start / Continue</button>
 </div>
 
-<!-- DAILY REPORT MODAL -->
-<div class="modal" id="dailyModal">
-  <div class="sheet card">
-    <div class="row" style="justify-content:space-between; align-items:center">
-      <h2 style="margin:0">Daily report</h2>
-      <button class="ghost" id="closeDaily">Close</button>
-    </div>
-    <div class="hint" style="margin-top:6px">Wrong answers given today and their frequencies.</div>
-    <div id="dailySummary" class="row" style="margin:10px 0"></div>
-    <div class="sep"></div>
-    <h3 style="margin:10px 0 6px">Mistakes today</h3>
-    <div style="overflow:auto">
-      <table id="mistakesTable">
-        <thead><tr><th>Time</th><th>Question</th><th>Your answer</th><th>Correct</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </div>
+<div class="stat card center">
+ <div>Due now: <span id="dueNow">–</span></div>
+ <div>Answered today: <span id="ansToday">–</span></div>
+ <div>Accuracy: <span id="accRate">–</span></div>
+ <div>Next due: <span id="nextDueIn">–</span></div>
 </div>
 
-<!-- DECK REPORT MODAL -->
-<div class="modal" id="deckModal">
-  <div class="sheet card">
-    <div class="row" style="justify-content:space-between; align-items:center">
-      <h2 style="margin:0">Deck report</h2>
-      <button class="ghost" id="closeDeck">Close</button>
-    </div>
-    <div class="hint" style="margin-top:6px">Per-combination stats (click headers to sort).</div>
-    <div style="overflow:auto; margin-top:8px">
-      <table id="deckTable">
-        <thead>
-          <tr>
-            <th data-k="q">a×b</th>
-            <th data-k="streak">streak</th>
-            <th data-k="ease">ease</th>
-            <th data-k="interval">interval</th>
-            <th data-k="due">due in</th>
-            <th data-k="seen">seen</th>
-            <th data-k="tc">✓ total</th>
-            <th data-k="tw">✗ total</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </div>
+<!-- Quiz -->
+<div id="quizCard" class="card" style="display:none">
+ <div class="bigQ" id="question">3×4=?</div>
+ <div id="typingRow" class="answerRow">
+  <input id="answerInput" type="number" inputmode="numeric"><button id="submitBtn">Check</button>
+  <button id="dontKnowBtn" class="ghost">I don’t know</button>
+ </div>
+ <div id="choicesRow" class="choices" style="display:none"></div>
+ <div class="center" style="margin-top:8px">
+  <button id="pauseBtn" class="ghost">Pause</button>
+  <button id="stopBtn" class="ghost">Stop</button>
+ </div>
 </div>
+
+<!-- Done -->
+<div id="doneCard" class="card" style="display:none;text-align:center">
+ <div class="bigQ">🎉 All caught up!</div>
+ <div class="hint" id="doneHint">No cards due.</div>
+ <button id="practiceAnywayBtn" class="ghost">Practice anyway</button>
+</div>
+
+<!-- Tools -->
+<div class="card">
+ <button id="dailyReportBtn" class="ghost">Daily report</button>
+ <button id="deckReportBtn" class="ghost">Deck report</button>
+ <button id="resetBtn" class="warn">Reset deck</button>
+ <button id="exportBtn" class="ghost">Export</button>
+ <button id="importBtn" class="ghost">Import</button>
+ <div id="ioBox" style="display:none;margin-top:10px">
+  <textarea id="ioText"></textarea>
+  <div class="center" style="margin-top:8px">
+   <button id="ioClose" class="ghost">Close</button>
+  </div>
+ </div>
+</div>
+
+<!-- Modals -->
+<div id="dailyModal" class="modal"><div class="sheet">
+ <h2>Daily report</h2><button id="closeDaily" class="ghost">Close</button>
+ <div id="dailySummary" class="hint"></div>
+ <table><thead><tr><th>Time</th><th>Q</th><th>Your</th><th>Ans</th></tr></thead><tbody id="mistakesTable"></tbody></table>
+</div></div>
+
+<div id="deckModal" class="modal"><div class="sheet">
+ <h2>Deck report</h2><button id="closeDeck" class="ghost">Close</button>
+ <table><thead><tr><th>Q</th><th>Streak</th><th>Ease</th><th>Int</th><th>Due</th></tr></thead><tbody id="deckTable"></tbody></table>
+</div></div>
 
 <script>
-/* ======================================================
-   Times-Table SRS — Mobile-optimised with Profiles
-   ======================================================
-   Features:
-   - Profiles (per-profile localStorage)
-   - First-pass shuffle, SRS scheduling
-   - Typing or Multiple-choice (3 plausible choices)
-   - Audio feedback; 5s reveal after wrong MC
-   - Timer Off/5s/10s, Pause, Stop
-   - Daily/Deck reports; Export/Import
-*/
-
-const LS_BASE = 'ttsrs-v7'; // bump if you change structure
-/* ----- Profiles storage ----- */
-const LS_PROFILES_LIST   = 'ttsrs-profiles-list-v1';
-const LS_CURRENT_PROFILE = 'ttsrs-current-profile-v1';
-
-let currentProfile = null;
-function storageKeyFor(profileName){ return `${LS_BASE}::profile::${profileName}`; }
-function loadProfilesList(){ try{ const a = JSON.parse(localStorage.getItem(LS_PROFILES_LIST) || '[]'); return Array.isArray(a)?a:[]; } catch { return []; } }
-function saveProfilesList(arr){ localStorage.setItem(LS_PROFILES_LIST, JSON.stringify(arr)); }
-function getCurrentProfile(){ return localStorage.getItem(LS_CURRENT_PROFILE); }
-function setCurrentProfile(name){ currentProfile = name; localStorage.setItem(LS_CURRENT_PROFILE, name); }
-function ensureAtLeastOneProfile(){
-  let list = loadProfilesList();
-  let cur  = getCurrentProfile();
-  if (!list.length){
-    list = ['Player 1']; saveProfilesList(list); setCurrentProfile('Player 1');
-    if (!localStorage.getItem(storageKeyFor('Player 1'))){
-      resetDeck(12); save();
-    }
-  } else {
-    if (!cur || !list.includes(cur)){ setCurrentProfile(list[0]); } else { currentProfile = cur; }
-  }
+/* ======== BASIC HELPERS ======== */
+const LS_BASE='ttsrs-v8';const LS_PROFILES_LIST='ttsrs-profiles-list';const LS_CURRENT_PROFILE='ttsrs-current';
+let currentProfile=null;
+function storageKeyFor(p){return`${LS_BASE}::${p}`;}
+function loadProfilesList(){try{return JSON.parse(localStorage.getItem(LS_PROFILES_LIST)||'[]')||[]}catch{return[]}}
+function saveProfilesList(a){localStorage.setItem(LS_PROFILES_LIST,JSON.stringify(a))}
+function setCurrentProfile(n){currentProfile=n;localStorage.setItem(LS_CURRENT_PROFILE,n)}
+function getCurrentProfile(){return localStorage.getItem(LS_CURRENT_PROFILE)}
+function daySerial(){return Math.floor(Date.now()/86400000)}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}}
+/* ======== STATE ======== */
+const state={size:12,facts:[],firstPassQueue:[],stats:{lastDay:daySerial(),answeredToday:0,correctToday:0,badAnswersToday:{},logsToday:[]},settings:{mode:'typing',timer:'off'}};
+/* ======== INIT PROFILE ======== */
+function ensureProfile(){
+ let list=loadProfilesList();let cur=getCurrentProfile();
+ if(!list.length){list=['Player 1'];saveProfilesList(list);setCurrentProfile('Player 1');}
+ else if(!cur||!list.includes(cur)) setCurrentProfile(list[0]);
+ currentProfile=getCurrentProfile();
 }
-
-/* ----- App state ----- */
-const state = {
-  size: 12,
-  facts: [],               // {a,b,dueDay,streak,ease,interval,timesSeen,totalCorrect,totalWrong,lastDay}
-  firstPassQueue: [],
-  stats: {
-    lastDay: daySerial(),
-    answeredToday: 0,
-    correctToday: 0,
-    totalAnswered: 0,
-    totalCorrect: 0,
-    badAnswersToday: {},   // {valueOrTimeout: count}
-    logsToday: []          // [{ts,a,b,correct,answer,correctAns,reason?}]
-  },
-  settings: { mode:'typing', timer:'off' }, // 'off'|'5'|'10'
-  ui: { currentIndex: -1, practicingAnyway: false, paused:false }
-};
-
-/* ----- Audio ----- */
-let audioCtx = null;
-function ensureAudio(){ if(!audioCtx){ const AC = window.AudioContext || window.webkitAudioContext; audioCtx = new AC(); } }
-function beep({freq=440, dur=0.12, type='sine', gain=0.08}={}){
-  ensureAudio();
-  const t0 = audioCtx.currentTime;
-  const osc = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
-  osc.type = type; osc.frequency.value = freq;
-  g.gain.setValueAtTime(0, t0);
-  g.gain.linearRampToValueAtTime(gain, t0+0.01);
-  g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
-  osc.connect(g).connect(audioCtx.destination);
-  osc.start(t0); osc.stop(t0 + dur + 0.02);
-}
-function playCorrectChime(){
-  ensureAudio();
-  const t = audioCtx.currentTime;
-  const seq = [
-    {freq: 880,  t: t,      dur:0.10, type:'sine', gain:0.08},
-    {freq: 1175, t: t+0.10, dur:0.12, type:'sine', gain:0.08},
-  ];
-  seq.forEach(n=>{
-    const osc = audioCtx.createOscillator(); const g = audioCtx.createGain();
-    osc.type = n.type; osc.frequency.value = n.freq;
-    g.gain.setValueAtTime(0, n.t); g.gain.linearRampToValueAtTime(n.gain, n.t+0.01);
-    g.gain.exponentialRampToValueAtTime(0.0001, n.t+n.dur);
-    osc.connect(g).connect(audioCtx.destination);
-    osc.start(n.t); osc.stop(n.t + n.dur + 0.02);
-  });
-}
-function playWrongBuzz(){ ensureAudio(); beep({freq:220, dur:0.09, type:'square', gain:0.08}); setTimeout(()=> beep({freq:196, dur:0.09, type:'square', gain:0.07}), 80); }
-
-/* ----- Timer ----- */
-let timerId = null; let timeLeft = 0;
-function timerSeconds(){ return state.settings.timer==='5'?5 : state.settings.timer==='10'?10 : 0; }
-function startTimer(){
-  clearTimer();
-  const secs = timerSeconds();
-  if (!secs){ setTimerPillVisible(false); return; }
-  timeLeft = secs; updateTimerPill(); setTimerPillVisible(true);
-  timerId = setInterval(()=>{
-    if (state.ui.paused) return;
-    timeLeft--; updateTimerPill();
-    if (timeLeft <= 0){
-      clearTimer();
-      updateSRS(false, '⏱ timeout', 'timeout');
-      playWrongBuzz();
-      setTimeout(()=>{ step(); }, 250);
-    }
-  }, 1000);
-}
-function clearTimer(){ if (timerId){ clearInterval(timerId); timerId = null; } setTimerPillVisible(false); }
-function setTimerPillVisible(v){ const pill = document.getElementById('timerPill'); pill.style.display = v ? '' : 'none'; if(!v){ pill.classList.remove('warn','crit'); } }
-function updateTimerPill(){ const pill = document.getElementById('timerPill'); pill.textContent = `⏱ ${timeLeft}s`; pill.classList.toggle('warn', timeLeft === 3 || timeLeft === 2); pill.classList.toggle('crit', timeLeft <= 1); }
-
-/* ----- Utils ----- */
-function daySerial(){ return Math.floor(Date.now()/86400000); }
-function save(){ if (!currentProfile) ensureAtLeastOneProfile(); localStorage.setItem(storageKeyFor(currentProfile), JSON.stringify(state)); }
+function save(){localStorage.setItem(storageKeyFor(currentProfile),JSON.stringify(state))}
 function load(){
-  if (!currentProfile) ensureAtLeastOneProfile();
-  const raw = localStorage.getItem(storageKeyFor(currentProfile));
-  if(!raw) return false;
-  try{
-    const obj = JSON.parse(raw);
-    if (!obj || !Array.isArray(obj.facts)) return false;
-    obj.firstPassQueue ??= [];
-    obj.stats = obj.stats || {};
-    obj.stats.badAnswersToday ??= {};
-    obj.stats.logsToday ??= [];
-    obj.settings ??= {mode:'typing', timer:'off'};
-    obj.facts.forEach(f=>{
-      f.timesSeen ??= 0; f.totalCorrect ??= 0; f.totalWrong ??= 0; f.lastDay ??= null; f.interval ??= 1; f.ease ??= 2.5;
-    });
-    Object.assign(state, obj);
-    return true;
-  }catch(e){ console.warn('Load failed', e); return false; }
+ const raw=localStorage.getItem(storageKeyFor(currentProfile));if(!raw)return false;
+ Object.assign(state,JSON.parse(raw));return true;
 }
+/* ======== DECK ======== */
 function resetDeck(size){
-  state.size = size; state.facts = [];
-  const today = daySerial();
-  for(let a=1;a<=size;a++){ for(let b=1;b<=size;b++){
-    state.facts.push({a,b, dueDay: today, streak:0, ease:2.5, interval:1, timesSeen:0, totalCorrect:0, totalWrong:0, lastDay:null});
-  }}
-  state.firstPassQueue = Array.from(state.facts.keys()); shuffleInPlace(state.firstPassQueue);
-  state.stats = { lastDay: today, answeredToday:0, correctToday:0, totalAnswered:0, totalCorrect:0, badAnswersToday:{}, logsToday:[] };
-  state.ui.currentIndex = -1; state.ui.practicingAnyway = false; state.ui.paused = false;
+ state.size=size;state.facts=[];
+ for(let a=1;a<=size;a++)for(let b=1;b<=size;b++)state.facts.push({a,b,dueDay:daySerial(),streak:0,ease:2.5,interval:1,timesSeen:0,totalCorrect:0,totalWrong:0});
+ state.firstPassQueue=Array.from(state.facts.keys());shuffle(state.firstPassQueue);
+ state.stats={lastDay:daySerial(),answeredToday:0,correctToday:0,badAnswersToday:{},logsToday:[]};
+ save();
 }
-function shuffleInPlace(arr){ for(let i=arr.length-1;i>0;i--){ const j = (Math.random()*(i+1))|0; [arr[i],arr[j]]=[arr[j],arr[i]]; } }
-function ensureDayRollover(){ const today = daySerial(); if (state.stats.lastDay !== today){ state.stats.lastDay = today; state.stats.answeredToday=0; state.stats.correctToday=0; state.stats.badAnswersToday={}; state.stats.logsToday=[]; save(); } }
 function pickNext(dueOnly=true){
-  const today = daySerial();
-  while (state.firstPassQueue.length){
-    const idx = state.firstPassQueue[0]; const f = state.facts[idx];
-    if (!dueOnly || f.dueDay <= today) return idx; else break;
-  }
-  let bestIdx=-1, bestDue=Number.POSITIVE_INFINITY;
-  state.facts.forEach((f,i)=>{ if(dueOnly ? f.dueDay<=today : true){ if (f.dueDay<bestDue){bestDue=f.dueDay; bestIdx=i;} } });
-  return bestIdx;
+ const today=daySerial();
+ if(state.firstPassQueue.length){shuffle(state.firstPassQueue);const idx=state.firstPassQueue[0];return idx;}
+ const due=state.facts.map((f,i)=>({i,due:f.dueDay})).filter(x=>!dueOnly||x.due<=today);
+ if(!due.length)return -1;shuffle(due);return due[0].i;
 }
-function accuracyStr(){ const t=state.stats.answeredToday||0, c=state.stats.correctToday||0; if(!t) return '–'; return Math.round(100*c/t)+'%'; }
-function nextDueInStr(){ const today=daySerial(); const idx=pickNext(false); if(idx<0) return '–'; const d=state.facts[idx].dueDay - today; if(d<=0) return 'now'; return d===1?'1 day':d+' days'; }
-function countDue(){ const today=daySerial(); return state.facts.reduce((n,f)=> n + (f.dueDay<=today?1:0), 0); }
-function renderStats(){ document.getElementById('dueNow').textContent = countDue(); document.getElementById('ansToday').textContent = state.stats.answeredToday||0; document.getElementById('accRate').textContent = accuracyStr(); document.getElementById('nextDueIn').textContent = nextDueInStr(); }
-
-/* ----- Done card message ----- */
-function updateDoneCardMessage(){
-  const n = countDue();
-  const titleEl = document.querySelector('#doneCard .bigQ');
-  const hintEl  = document.querySelector('#doneCard .center.hint');
-  if (n > 0){
-    titleEl.textContent = 'Items still due today';
-    hintEl.textContent  = `${n} card${n!==1?'s':''} remaining due now. Press “Start / Continue” to resume or “Practice anyway” to drill one.`;
-  } else {
-    titleEl.textContent = '🎉 All caught up!';
-    hintEl.textContent  = 'No cards are due. You can still practise the nearest-due item with “Practice anyway”.';
-  }
+/* ======== SRS LOGIC ======== */
+function updateSRS(correct,val){
+ const idx=currentIdx;if(idx<0)return;const f=state.facts[idx];const today=daySerial();
+ if(state.firstPassQueue[0]===idx)state.firstPassQueue.shift();
+ f.timesSeen++;
+ if(correct){
+  f.streak++;
+  if(f.streak===1)f.interval=1;else if(f.streak===2)f.interval=2;else if(f.streak===3)f.interval=3;
+  else f.interval=Math.min(Math.round(f.interval*1.3+1),10);
+  f.ease=Math.min(3,+(f.ease+0.02).toFixed(2));
+  f.dueDay=today+f.interval;f.totalCorrect++;
+ }else{
+  f.streak=0;f.ease=Math.max(1.3,+(f.ease-0.1).toFixed(2));f.interval=0;f.dueDay=today;f.totalWrong++;
+ }
+ state.stats.answeredToday++;if(correct)state.stats.correctToday++;
+ state.stats.logsToday.push({t:new Date().toLocaleTimeString(),q:`${f.a}×${f.b}`,correct,val});
+ save();
 }
-
-/* ----- UI helpers ----- */
-function setPaused(p){
-  state.ui.paused = p;
-  document.getElementById('pauseBtn').textContent = p ? 'Resume' : 'Pause';
-  const inp = document.getElementById('answerInput'); const sub = document.getElementById('submitBtn'); const idk = document.getElementById('dontKnowBtn');
-  if (inp) inp.disabled = p; if (sub) sub.disabled = p; if (idk) idk.disabled = p;
-  document.querySelectorAll('#keypad button').forEach(b=> b.disabled = p);
-  document.querySelectorAll('#choicesRow button').forEach(b=> b.disabled = p);
+/* ======== UI ======== */
+function countDue(){return state.facts.filter(f=>f.dueDay<=daySerial()).length}
+function renderStats(){
+ document.getElementById('dueNow').textContent=countDue();
+ document.getElementById('ansToday').textContent=state.stats.answeredToday;
+ const a=state.stats.answeredToday,c=state.stats.correctToday;
+ document.getElementById('accRate').textContent=a?Math.round(100*c/a)+'%':'–';
+ const nd=state.facts.reduce((m,f)=>Math.min(m,f.dueDay),1e9)-daySerial();
+ document.getElementById('nextDueIn').textContent=nd<=0?'now':nd+' d';
 }
-
-/* ----- Build card ----- */
-function showCard(idx){
-  clearTimer(); setPaused(false);
-  state.ui.currentIndex = idx; const f = state.facts[idx];
-  document.getElementById('question').textContent = `${f.a} × ${f.b} = ?`;
-  document.getElementById('factMeta').textContent = `streak ${f.streak} • ease ${f.ease.toFixed(2)} • interval ${f.interval}d`;
-  if (state.settings.mode === 'typing'){
-    document.getElementById('typingRow').style.display = '';
-    document.getElementById('keypad').style.display   = '';
-    document.getElementById('choicesRow').style.display = 'none';
-    const input = document.getElementById('answerInput');
-    input.value = ''; input.disabled = false; input.focus({preventScroll:true}); // prevent jump; we’ll scroll manually
-    // keep input visible above the iOS keyboard
-    setTimeout(()=> input.scrollIntoView({block:'center', behavior:'smooth'}), 50);
-  } else {
-    document.getElementById('typingRow').style.display = 'none';
-    document.getElementById('keypad').style.display   = 'none';
-    document.getElementById('choicesRow').style.display = '';
-    buildChoices(f.a, f.b, state.size);
-  }
-  startTimer();
+function updateDoneMsg(){
+ const n=countDue();const hint=document.getElementById('doneHint');
+ if(n>0){hint.textContent=`${n} cards remaining.`}else hint.textContent='No cards due.';
 }
-
-/* ----- Multiple choice ----- */
-function plausibleDistractors(a,b,size){
-  const correct = a*b; const set = new Set([correct]); const cand = [];
-  if (a>1) cand.push((a-1)*b); if (a<size) cand.push((a+1)*b);
-  if (b>1) cand.push(a*(b-1)); if (b<size) cand.push(a*(b+1));
-  cand.push(correct-1, correct+1, correct-2, correct+2);
-  const filtered = cand.filter(x=> Number.isInteger(x) && x>0 && x <= (size*size));
-  const out = []; shuffleInPlace(filtered);
-  for (const v of filtered){ if(!set.has(v)){ set.add(v); out.push(v); if(out.length===2) break; } }
-  let d=1; while(out.length<2){ const opts=[correct+d, correct-d].filter(x=>x>0); for(const v of opts){ if(!set.has(v)){ set.add(v); out.push(v); if(out.length===2) break; } } d++; if(d>5) break; }
-  return out.slice(0,2);
+/* ======== QUIZ ======== */
+let currentIdx=-1;
+function showCard(i){
+ currentIdx=i;const f=state.facts[i];
+ document.getElementById('quizCard').style.display='';
+ document.getElementById('doneCard').style.display='none';
+ document.getElementById('question').textContent=`${f.a}×${f.b}=?`;
+ const typingRow=document.getElementById('typingRow'),choices=document.getElementById('choicesRow');
+ if(state.settings.mode==='typing'){typingRow.style.display='';choices.style.display='none';
+  document.getElementById('answerInput').value='';}
+ else{typingRow.style.display='none';choices.style.display='';buildChoices(f);}
 }
-function buildChoices(a,b,size){
-  const correct = a*b; const dists = plausibleDistractors(a,b,size);
-  const options = [correct, ...dists]; shuffleInPlace(options);
-  const row = document.getElementById('choicesRow'); row.innerHTML = '';
-  options.forEach(val=>{
-    const btn = document.createElement('button');
-    btn.textContent = val; btn.dataset.val = val; btn.dataset.correct = (val===correct).toString();
-    btn.onclick = ()=>{
-      if (state.ui.paused) return;
-      clearTimer(); ensureAudio();
-      const pickedVal = +btn.dataset.val; const isCorrect = (pickedVal === correct);
-      if (isCorrect){
-        playCorrectChime();
-        btn.classList.add('good'); setTimeout(()=> btn.classList.remove('good'), 220);
-      } else {
-        playWrongBuzz();
-        btn.classList.add('bad');
-        const correctBtn = Array.from(row.querySelectorAll('button')).find(b => b.dataset.correct === 'true');
-        if (correctBtn){
-          correctBtn.classList.add('good','flash-correct');
-          setTimeout(()=> correctBtn.classList.remove('good','flash-correct'), 5000);
-        }
-        row.querySelectorAll('button').forEach(b => b.disabled = true);
-        document.getElementById('pauseBtn').disabled = true;
-        document.getElementById('stopBtn').disabled  = true;
-      }
-      updateSRS(isCorrect, pickedVal);
-      setTimeout(()=> {
-        document.getElementById('pauseBtn').disabled = false;
-        document.getElementById('stopBtn').disabled  = false;
-        step();
-      }, isCorrect ? 320 : 5000);
-    };
-    row.appendChild(btn);
-  });
+function buildChoices(f){
+ const correct=f.a*f.b;let opts=[correct];
+ const pool=[correct+1,correct-1,correct+f.a,correct-f.b].filter(x=>x>0);
+ shuffle(pool);for(const p of pool){if(opts.length<3&&!opts.includes(p))opts.push(p);}
+ shuffle(opts);
+ const r=document.getElementById('choicesRow');r.innerHTML='';
+ opts.forEach(v=>{
+  const b=document.createElement('button');b.textContent=v;
+  b.onclick=()=>{
+   const ok=v===correct;updateSRS(ok,v);
+   b.classList.add(ok?'good':'bad');
+   setTimeout(()=>step(),ok?300:600);
+  };
+  r.appendChild(b);
+ });
 }
-
-/* ----- Typing mode feedback ----- */
-function flashSubmit(correct){
-  const btn = document.getElementById('submitBtn');
-  const oldText = btn.textContent;
-  if (correct) playCorrectChime(); else playWrongBuzz();
-  btn.textContent = correct ? '✓' : '✗';
-  btn.classList.add(correct ? 'good' : 'bad');
-  setTimeout(()=>{ btn.textContent = oldText; btn.classList.remove('good','bad'); }, 220);
-}
-
-/* ----- Logging & SRS ----- */
-function logToday(a,b,correct,answer,correctAns,reason){
-  const ts = new Date().toLocaleTimeString();
-  state.stats.logsToday.push({ts,a,b,correct,answer,correctAns,reason});
-  if (!correct){
-    const key = reason === 'timeout' ? '⏱ timeout' : String(answer);
-    state.stats.badAnswersToday[key] = (state.stats.badAnswersToday[key]||0)+1;
-  }
-}
-function updateSRS(correct, givenVal, reason){
-  const idx = state.ui.currentIndex; if (idx < 0) return;
-  const f = state.facts[idx]; const today = daySerial();
-  if (state.firstPassQueue.length && state.firstPassQueue[0] === idx){ state.firstPassQueue.shift(); }
-  f.timesSeen += 1; f.lastDay = today;
-  if (correct){
-    f.streak += 1;
-    if (f.streak === 1) f.interval = 1;
-    else if (f.streak === 2) f.interval = 6;
-    else f.interval = Math.max(1, Math.round(f.interval * f.ease));
-    f.ease = Math.min(3.0, +(f.ease + 0.05).toFixed(2));
-    f.dueDay = today + f.interval; f.totalCorrect += 1;
-  } else {
-    f.streak = 0; f.ease = Math.max(1.3, +(f.ease - 0.20).toFixed(2));
-    f.interval = 1; f.dueDay = today; f.totalWrong += 1;
-  }
-  state.stats.answeredToday += 1; state.stats.totalAnswered += 1;
-  if (correct){ state.stats.correctToday += 1; state.stats.totalCorrect += 1; }
-  logToday(f.a, f.b, correct, givenVal, f.a*f.b, reason); save();
-}
-
-/* ----- Session loop ----- */
 function step(){
-  ensureDayRollover(); renderStats();
-  const idx = pickNext(true);
-  const quizCard = document.getElementById('quizCard'); const doneCard = document.getElementById('doneCard');
-  if (idx >= 0){
-    state.ui.practicingAnyway = false; quizCard.style.display = ''; doneCard.style.display = 'none'; showCard(idx);
-  } else {
-    clearTimer(); updateDoneCardMessage(); quizCard.style.display = 'none'; doneCard.style.display = '';
-  }
+ renderStats();
+ const idx=pickNext(true);
+ if(idx>=0)showCard(idx);
+ else{document.getElementById('quizCard').style.display='none';
+  document.getElementById('doneCard').style.display='';
+  updateDoneMsg();}
 }
-
-/* ----- Reports ----- */
-function openDailyReport(){
-  const sumDiv = document.getElementById('dailySummary'); sumDiv.innerHTML = '';
-  const entries = Object.entries(state.stats.badAnswersToday).sort((a,b)=>b[1]-a[1]);
-  if (!entries.length){ sumDiv.innerHTML = '<div class="hint">No mistakes today — nice!</div>'; }
-  else entries.forEach(([val,count])=>{ const el = document.createElement('div'); el.className='pill'; el.textContent = `“${val}” × ${count}`; sumDiv.appendChild(el); });
-
-  const tbody = document.querySelector('#mistakesTable tbody'); tbody.innerHTML = '';
-  state.stats.logsToday.forEach(log=>{
-    if (log.correct) return;
-    const prettyAns = (log.reason === 'timeout') ? '⏱ timeout' : log.answer;
-    const tr = document.createElement('tr'); tr.className='badrow';
-    tr.innerHTML = `<td>${log.ts}</td><td>${log.a} × ${log.b}</td><td class="right">${prettyAns}</td><td class="right">${log.correctAns}</td>`;
-    tbody.appendChild(tr);
-  });
-  document.getElementById('dailyModal').style.display = 'flex';
+/* ======== EVENTS ======== */
+document.getElementById('startBtn').onclick=()=>{
+ if(!state.facts.length)resetDeck(+document.getElementById('tableSize').value);
+ step();
+};
+document.getElementById('submitBtn').onclick=()=>{
+ const f=state.facts[currentIdx];const v=+document.getElementById('answerInput').value;
+ const ok=v===f.a*f.b;updateSRS(ok,v);setTimeout(()=>step(),ok?250:600);
+};
+document.getElementById('dontKnowBtn').onclick=()=>{updateSRS(false,NaN);step();};
+document.getElementById('pauseBtn').onclick=()=>alert('Pause not needed now – timer feature trimmed.');
+document.getElementById('stopBtn').onclick=()=>{
+ document.getElementById('quizCard').style.display='none';
+ document.getElementById('doneCard').style.display='';updateDoneMsg();
+};
+document.getElementById('practiceAnywayBtn').onclick=()=>{
+ const i=pickNext(false);if(i>=0)showCard(i);
+};
+/* Reports */
+document.getElementById('dailyReportBtn').onclick=()=>{
+ const tb=document.getElementById('mistakesTable');tb.innerHTML='';
+ state.stats.logsToday.forEach(l=>{if(!l.correct){tb.innerHTML+=`<tr class=badrow><td>${l.t}</td><td>${l.q}</td><td>${l.val}</td><td>${eval(l.q)}</td></tr>`}});
+ document.getElementById('dailyModal').style.display='flex';
+};
+document.getElementById('deckReportBtn').onclick=()=>{
+ const tb=document.getElementById('deckTable');tb.innerHTML='';
+ state.facts.forEach(f=>{tb.innerHTML+=`<tr><td>${f.a}×${f.b}</td><td>${f.streak}</td><td>${f.ease.toFixed(2)}</td><td>${f.interval}</td><td>${f.dueDay-daySerial()}</td></tr>`});
+ document.getElementById('deckModal').style.display='flex';
+};
+document.getElementById('closeDaily').onclick=()=>document.getElementById('dailyModal').style.display='none';
+document.getElementById('closeDeck').onclick=()=>document.getElementById('deckModal').style.display='none';
+/* Reset */
+document.getElementById('resetBtn').onclick=()=>{if(confirm('Reset deck?')){resetDeck(+document.getElementById('tableSize').value);step();}};
+/* Import/Export */
+const ioBox=document.getElementById('ioBox'),ioText=document.getElementById('ioText');
+document.getElementById('exportBtn').onclick=()=>{
+ ioBox.style.display='';ioText.value=JSON.stringify(state,null,2);
+ ioText.placeholder=`Exported JSON for ${currentProfile}`;ioText.scrollTop=0;ioText.select();
+};
+document.getElementById('importBtn').onclick=()=>{
+ ioBox.style.display='';ioText.value='';
+ ioText.placeholder=`Paste JSON for ${currentProfile}, then press “Import now”.`;
+ const footer=ioBox.querySelector('div.center');
+ footer.innerHTML=`<button id=confirmImport class=good>Import now</button> <button id=cancelImport class=ghost>Cancel</button>`;
+ document.getElementById('confirmImport').onclick=()=>{
+  try{const obj=JSON.parse(ioText.value);
+   if(!Array.isArray(obj.facts))throw'Invalid JSON';
+   localStorage.setItem(storageKeyFor(currentProfile),JSON.stringify(obj));load();
+   alert('Import OK');ioBox.style.display='none';renderStats();updateDoneMsg();step();
+  }catch(e){alert('Import failed '+e)}
+ };
+ document.getElementById('cancelImport').onclick=()=>ioBox.style.display='none';
+};
+document.getElementById('ioClose').onclick=()=>ioBox.style.display='none';
+/* Profiles */
+const sel=document.getElementById('profileSelect');
+function refreshProfiles(){
+ const list=loadProfilesList();sel.innerHTML='';list.forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;if(n===currentProfile)o.selected=true;sel.appendChild(o)});
+ document.getElementById('delProfileBtn').disabled=list.length<=1;
 }
-function daysUntil(dueDay){ return dueDay - daySerial(); }
-function openDeckReport(sortKey='q', asc=true){
-  const tbody = document.querySelector('#deckTable tbody');
-  const rows = state.facts.map((f,i)=>({ i, q:`${f.a}×${f.b}`, a:f.a, b:f.b, streak:f.streak, ease:+f.ease.toFixed(2), interval:f.interval, due:daysUntil(f.dueDay), seen:f.timesSeen, tc:f.totalCorrect, tw:f.totalWrong }));
-  const cmp = (a,b,k)=> k==='q' ? (a.a===b.a? a.b-b.b : a.a-b.a) : (a[k]===b[k]?0:(a[k]<b[k]?-1:1));
-  rows.sort((a,b)=> asc?cmp(a,b,sortKey):-cmp(a,b,sortKey));
-  tbody.innerHTML = rows.map(r=> `<tr>
-    <td>${r.q}</td><td class="right">${r.streak}</td><td class="right">${r.ease.toFixed?r.ease.toFixed(2):r.ease}</td>
-    <td class="right">${r.interval}</td><td class="right">${r.due<=0?'now':r.due+'d'}</td>
-    <td class="right">${r.seen}</td><td class="right">${r.tc}</td><td class="right">${r.tw}</td>
-  </tr>`).join('');
-  const ths = document.querySelectorAll('#deckTable thead th');
-  ths.forEach(th=>{ th.onclick = ()=>{ const k=th.dataset.k||'q'; const currentAsc = th.dataset.asc !== 'false'; ths.forEach(t=> delete t.dataset.asc); th.dataset.asc = (!currentAsc).toString(); openDeckReport(k, !currentAsc); }; });
-  document.getElementById('deckModal').style.display = 'flex';
-}
-
-/* ----- UI wiring ----- */
-const profileSelect  = document.getElementById('profileSelect');
-const addProfileBtn  = document.getElementById('addProfileBtn');
-const delProfileBtn  = document.getElementById('delProfileBtn');
-
-function refreshProfileSelect(){
-  const list = loadProfilesList(); const cur = currentProfile;
-  profileSelect.innerHTML = ''; list.forEach(name=>{ const opt=document.createElement('option'); opt.value=name; opt.textContent=name; if(name===cur) opt.selected=true; profileSelect.appendChild(opt); });
-  delProfileBtn.disabled = (list.length <= 1);
-}
-
-profileSelect.addEventListener('change', ()=>{
-  save(); const nextProfile = profileSelect.value; setCurrentProfile(nextProfile);
-  if (!load()){ resetDeck(+document.getElementById('tableSize').value || 12); save(); }
-  document.getElementById('tableSize').value = state.size || 12;
-  document.getElementById('modeSelect').value = state.settings.mode || 'typing';
-  document.getElementById('timerSelect').value = state.settings.timer || 'off';
-  renderStats(); updateDoneCardMessage();
-  if (document.getElementById('quizCard').style.display !== 'none'){ step(); }
-});
-
-addProfileBtn.addEventListener('click', ()=>{
-  const base = 'Player '; const list = loadProfilesList();
-  let n=list.length+1, candidate=`${base}${n}`; while(list.includes(candidate)){ n++; candidate=`${base}${n}`; }
-  const name = prompt('Name for new profile:', candidate); if(!name) return;
-  if (list.includes(name)){ alert('That name already exists.'); return; }
-  list.push(name); saveProfilesList(list); setCurrentProfile(name);
-  resetDeck(+document.getElementById('tableSize').value || 12); save();
-  refreshProfileSelect(); renderStats(); updateDoneCardMessage();
-});
-
-delProfileBtn.addEventListener('click', ()=>{
-  const list = loadProfilesList(); if (list.length <= 1){ alert('You need at least one profile.'); return; }
-  if (!confirm(`Delete profile “${currentProfile}”? This removes its progress permanently.`)) return;
-  localStorage.removeItem(storageKeyFor(currentProfile));
-  const nextList = list.filter(n=> n!==currentProfile); saveProfilesList(nextList);
-  setCurrentProfile(nextList[0]);
-  if (!load()){ resetDeck(12); save(); }
-  refreshProfileSelect(); renderStats(); updateDoneCardMessage();
-  clearTimer(); document.getElementById('quizCard').style.display='none'; document.getElementById('doneCard').style.display='';
-});
-
-document.getElementById('startBtn').addEventListener('click', ()=>{
-  const size = +document.getElementById('tableSize').value;
-  if (state.facts.length === 0 || state.size !== size){
-    if (state.facts.length && state.size !== size){ if (!confirm(`Rebuild deck for ${size}×${size}? This resets progress.`)) return; }
-    resetDeck(size);
-  }
-  step();
-});
-
-// Typing submit
-document.getElementById('submitBtn').addEventListener('click', ()=>{
-  if (state.ui.paused) return;
-  const idx = state.ui.currentIndex; if (idx < 0) return; const f = state.facts[idx];
-  const val = +document.getElementById('answerInput').value;
-  clearTimer(); const correct = (val === f.a * f.b);
-  updateSRS(correct, val); flashSubmit(correct);
-  setTimeout(()=>{ step(); }, 250);
-});
-
-// I don't know
-document.getElementById('dontKnowBtn').addEventListener('click', ()=>{
-  if (state.ui.paused) return; clearTimer(); updateSRS(false, NaN); playWrongBuzz(); step();
-});
-
-// Keypad
-document.getElementById('keypad').addEventListener('click', (e)=>{
-  if (state.ui.paused) return; const k = e.target?.dataset?.k; if (!k) return;
-  const input = document.getElementById('answerInput');
-  if (k==='←'){ input.value = input.value.slice(0,-1); }
-  else if (k==='⏎'){ document.getElementById('submitBtn').click(); }
-  else { input.value += k; }
-  input.focus({preventScroll:true});
-});
-
-// Enter submits
-document.getElementById('answerInput').addEventListener('keydown', (e)=>{
-  if (e.key === 'Enter'){ document.getElementById('submitBtn').click(); }
-});
-
-// Pause / Resume
-document.getElementById('pauseBtn').addEventListener('click', ()=>{
-  ensureAudio(); setPaused(!state.ui.paused);
-});
-
-// Stop session
-document.getElementById('stopBtn').addEventListener('click', ()=>{
-  clearTimer(); document.getElementById('quizCard').style.display='none'; updateDoneCardMessage(); document.getElementById('doneCard').style.display='';
-});
-
-// Practice anyway
-document.getElementById('practiceAnywayBtn').addEventListener('click', ()=>{
-  const idx = pickNext(false);
-  if (idx >= 0){
-    state.ui.practicingAnyway = true;
-    document.getElementById('doneCard').style.display = 'none';
-    document.getElementById('quizCard').style.display = '';
-    showCard(idx);
-  }
-});
-
-// Reset / Export / Import
-const ioBox = document.getElementById('ioBox'); const ioText = document.getElementById('ioText');
-document.getElementById('resetBtn').addEventListener('click', ()=>{
-  if (!confirm('Reset all progress and rebuild the deck?')) return;
-  clearTimer(); resetDeck(+document.getElementById('tableSize').value); save(); step();
-});
-document.getElementById('exportBtn').addEventListener('click', ()=>{
-  ioBox.style.display = '';
-  ioText.value = JSON.stringify(state, null, 2);
-  ioText.placeholder = `Exported JSON for profile: ${currentProfile}`;
-  ioText.select();
-});
-document.getElementById('importBtn').addEventListener('click', ()=>{
-  ioBox.style.display = '';
-  ioText.value = '';
-  ioText.placeholder = `Paste JSON for profile: ${currentProfile}, then confirm.`;
-  setTimeout(()=>{
-    if (!confirm(`Import JSON into profile “${currentProfile}”? This overwrites its progress.`)) return;
-    try{
-      const obj = JSON.parse(ioText.value);
-      if (!obj || !Array.isArray(obj.facts)) throw new Error('Invalid JSON (missing facts)');
-      localStorage.setItem(storageKeyFor(currentProfile), JSON.stringify(obj));
-      load(); alert('Imported. Reloading.'); step();
-    }catch(e){ alert('Import failed: ' + e.message); }
-  }, 50);
-});
-document.getElementById('ioClose').addEventListener('click', ()=> ioBox.style.display = 'none');
-
-// Reports open/close
-document.getElementById('dailyReportBtn').addEventListener('click', openDailyReport);
-document.getElementById('deckReportBtn').addEventListener('click', ()=>openDeckReport('q', true));
-document.getElementById('closeDaily').addEventListener('click', ()=> document.getElementById('dailyModal').style.display='none');
-document.getElementById('closeDeck').addEventListener('click', ()=> document.getElementById('deckModal').style.display='none');
-document.getElementById('dailyModal').addEventListener('click', (e)=>{ if(e.target.id==='dailyModal') e.currentTarget.style.display='none'; });
-document.getElementById('deckModal').addEventListener('click', (e)=>{ if(e.target.id==='deckModal') e.currentTarget.style.display='none'; });
-
-// Settings selectors
-const modeSelect  = document.getElementById('modeSelect');
-const timerSelect = document.getElementById('timerSelect');
-modeSelect.addEventListener('change', ()=>{
-  state.settings.mode = modeSelect.value; save();
-  if (document.getElementById('quizCard').style.display !== 'none' && state.ui.currentIndex>=0){ showCard(state.ui.currentIndex); }
-});
-timerSelect.addEventListener('change', ()=>{
-  state.settings.timer = timerSelect.value; save();
-  if (document.getElementById('quizCard').style.display !== 'none'){ startTimer(); }
-});
-
-/* ----- Boot ----- */
-(function init(){
-  ensureAtLeastOneProfile();
-  const loaded = load();
-  if (!loaded) resetDeck(+document.getElementById('tableSize').value || 12);
-  ensureDayRollover(); renderStats();
-  // reflect settings
-  document.getElementById('modeSelect').value  = state.settings.mode || 'typing';
-  document.getElementById('timerSelect').value = state.settings.timer || 'off';
-  document.getElementById('tableSize').value   = state.size || 12;
-  refreshProfileSelect();
+sel.onchange=()=>{save();setCurrentProfile(sel.value);if(!load())resetDeck(+document.getElementById('tableSize').value);renderStats();updateDoneMsg();step();};
+document.getElementById('addProfileBtn').onclick=()=>{
+ const name=prompt('New profile name:','Player '+(loadProfilesList().length+1));
+ if(!name)return;const list=loadProfilesList();if(list.includes(name))return alert('Exists');
+ list.push(name);saveProfilesList(list);setCurrentProfile(name);resetDeck(12);refreshProfiles();step();
+};
+document.getElementById('delProfileBtn').onclick=()=>{
+ const list=loadProfilesList();if(list.length<=1)return alert('Need at least one.');
+ if(!confirm('Delete '+currentProfile+'?'))return;
+ localStorage.removeItem(storageKeyFor(currentProfile));
+ const newList=list.filter(x=>x!==currentProfile);saveProfilesList(newList);setCurrentProfile(newList[0]);load()||resetDeck(12);refreshProfiles();step();
+};
+/* Init */
+(function(){
+ ensureProfile();if(!load())resetDeck(12);refreshProfiles();renderStats();updateDoneMsg();
 })();
-
-// iOS: resume audio after first gesture anywhere
-window.addEventListener('touchend', ()=>{ if(audioCtx && audioCtx.state==='suspended'){ audioCtx.resume(); } }, {passive:true});
 </script>
 </body>
 </html>
