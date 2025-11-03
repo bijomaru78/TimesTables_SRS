@@ -63,9 +63,36 @@
   .tag{padding:6px 10px; border-radius:10px; border:1px solid #0000002a; font-size:13px}
   .center{text-align:center}
   .choices{display:flex; gap:12px; justify-content:center; margin-top:12px; flex-wrap:wrap}
-  .choices button{min-width:120px; font-size:22px; padding:14px 18px}
+.choices button {
+  min-width: 120px;
+  font-size: 22px;
+  padding: 14px 18px;
+  background: #fff; /* white background */
+  color: var(--accent); /* blue text */
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
 
-  /* Sticky header controls on mobile */
+.choices button:active {  transform: scale(0.97);}
+
+/* Correct answer (green filled) */
+.choices button.good {
+  background: var(--good);
+  color: #fff;
+  border-color: var(--good);
+}
+
+/* Incorrect answer (outlined red, not filled) */
+.choices button.bad {
+  background: #fff;              /* keep white background */
+  color: var(--bad);             /* red text */
+  border-color: var(--bad);      /* red border */
+  font-weight: 700;
+}
+
+  /* Sticky header controls */
   .controls{
     position:sticky; top:0; z-index:20; backdrop-filter:saturate(120%) blur(8px);
     background:linear-gradient( to bottom, rgba(23,26,33,.85), rgba(23,26,33,.6) );
@@ -91,7 +118,7 @@
   }
   .flash-correct{ animation: flashPulse .35s ease-out 2; }
 
-  /* Mobile typography */
+  /* Mobile tweaks */
   @media (max-width: 480px){
     h1{font-size:20px}
     .bigQ{font-size:40px}
@@ -105,7 +132,7 @@
   <div class="row controls">
     <div class="grow">
       <h1 style="margin-bottom:4px">Times Tables SRS</h1>
-      <div class="hint"></div>
+      <div class="hint">Profiles + SRS with typing or multiple choice. Progress is saved per profile on this device.</div>
     </div>
     <div class="flex">
       <label>Profile</label>
@@ -121,8 +148,8 @@
 
       <label>Mode</label>
       <select id="modeSelect" title="Typing or Multiple Choice">
-         <option value="mc">Multiple choice</option>
-		 <option value="typing" selected>Typing</option>
+        <option value="typing" selected>Typing</option>
+        <option value="mc">Multiple choice</option>
       </select>
 
       <label>Timer</label>
@@ -216,7 +243,7 @@
       </div>
       <div id="ioBox" style="display:none; margin-top:12px">
         <textarea id="ioText" placeholder="Exported JSON will appear here, or paste JSON here to import."></textarea>
-        <div class="flex" style="margin-top:8px; justify-content:flex-end">
+        <div id="ioFooter" class="flex" style="margin-top:8px; justify-content:flex-end">
           <button id="ioClose" class="ghost">Close</button>
         </div>
       </div>
@@ -273,19 +300,8 @@
 </div>
 
 <script>
-/* ======================================================
-   Times-Table SRS — Mobile-optimised with Profiles
-   ======================================================
-   Features:
-   - Profiles (per-profile localStorage)
-   - First-pass shuffle, SRS scheduling
-   - Typing or Multiple-choice (3 plausible choices)
-   - Audio feedback; 5s reveal after wrong MC
-   - Timer Off/5s/10s, Pause, Stop
-   - Daily/Deck reports; Export/Import
-*/
 
-const LS_BASE = 'ttsrs-v7'; // bump if you change structure
+const LS_BASE = 'ttsrs-v9';
 /* ----- Profiles storage ----- */
 const LS_PROFILES_LIST   = 'ttsrs-profiles-list-v1';
 const LS_CURRENT_PROFILE = 'ttsrs-current-profile-v1';
@@ -350,12 +366,13 @@ function playCorrectChime(){
     {freq: 1175, t: t+0.10, dur:0.12, type:'sine', gain:0.08},
   ];
   seq.forEach(n=>{
-    const osc = audioCtx.createOscillator(); const g = audioCtx.createGain();
-    osc.type = n.type; osc.frequency.value = n.freq;
+    const osc = document.createElement('audioCtxOsc') && audioCtx.createOscillator();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = n.type; o.frequency.value = n.freq;
     g.gain.setValueAtTime(0, n.t); g.gain.linearRampToValueAtTime(n.gain, n.t+0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, n.t+n.dur);
-    osc.connect(g).connect(audioCtx.destination);
-    osc.start(n.t); osc.stop(n.t + n.dur + 0.02);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(n.t); o.stop(n.t + n.dur + 0.02);
   });
 }
 function playWrongBuzz(){ ensureAudio(); beep({freq:220, dur:0.09, type:'square', gain:0.08}); setTimeout(()=> beep({freq:196, dur:0.09, type:'square', gain:0.07}), 80); }
@@ -367,18 +384,34 @@ function startTimer(){
   clearTimer();
   const secs = timerSeconds();
   if (!secs){ setTimerPillVisible(false); return; }
-  timeLeft = secs; updateTimerPill(); setTimerPillVisible(true);
+  timeLeft = secs;
+  updateTimerPill();
+  setTimerPillVisible(true);
+
   timerId = setInterval(()=>{
     if (state.ui.paused) return;
-    timeLeft--; updateTimerPill();
+    timeLeft--;
+    updateTimerPill();
+
+    if (timeLeft === 3 || timeLeft === 2 || timeLeft === 1){
+      ensureAudio();
+      beep({
+        freq: 880 - (3 - timeLeft) * 120, 
+        dur: 0.08,
+        type: 'sine',
+        gain: 0.07
+      });
+    }
+
     if (timeLeft <= 0){
       clearTimer();
       updateSRS(false, '⏱ timeout', 'timeout');
       playWrongBuzz();
-      setTimeout(()=>{ step(); }, 250);
+      setTimeout(()=> step(), 250);
     }
   }, 1000);
 }
+
 function clearTimer(){ if (timerId){ clearInterval(timerId); timerId = null; } setTimerPillVisible(false); }
 function setTimerPillVisible(v){ const pill = document.getElementById('timerPill'); pill.style.display = v ? '' : 'none'; if(!v){ pill.classList.remove('warn','crit'); } }
 function updateTimerPill(){ const pill = document.getElementById('timerPill'); pill.textContent = `⏱ ${timeLeft}s`; pill.classList.toggle('warn', timeLeft === 3 || timeLeft === 2); pill.classList.toggle('crit', timeLeft <= 1); }
@@ -414,19 +447,33 @@ function resetDeck(size){
   state.firstPassQueue = Array.from(state.facts.keys()); shuffleInPlace(state.firstPassQueue);
   state.stats = { lastDay: today, answeredToday:0, correctToday:0, totalAnswered:0, totalCorrect:0, badAnswersToday:{}, logsToday:[] };
   state.ui.currentIndex = -1; state.ui.practicingAnyway = false; state.ui.paused = false;
+  save();
 }
 function shuffleInPlace(arr){ for(let i=arr.length-1;i>0;i--){ const j = (Math.random()*(i+1))|0; [arr[i],arr[j]]=[arr[j],arr[i]]; } }
-function ensureDayRollover(){ const today = daySerial(); if (state.stats.lastDay !== today){ state.stats.lastDay = today; state.stats.answeredToday=0; state.stats.correctToday=0; state.stats.badAnswersToday={}; state.stats.logsToday=[]; save(); } }
+
+/* ----- Randomised picking (first-pass priority) ----- */
 function pickNext(dueOnly=true){
   const today = daySerial();
-  while (state.firstPassQueue.length){
-    const idx = state.firstPassQueue[0]; const f = state.facts[idx];
-    if (!dueOnly || f.dueDay <= today) return idx; else break;
+
+  // Randomise first-pass order
+  if (state.firstPassQueue.length){
+    shuffleInPlace(state.firstPassQueue);
+    const idx = state.firstPassQueue[0];
+    const f = state.facts[idx];
+    if (!dueOnly || f.dueDay <= today) return idx;
+    // if top FP isn't due and dueOnly, fall through to due list
   }
-  let bestIdx=-1, bestDue=Number.POSITIVE_INFINITY;
-  state.facts.forEach((f,i)=>{ if(dueOnly ? f.dueDay<=today : true){ if (f.dueDay<bestDue){bestDue=f.dueDay; bestIdx=i;} } });
-  return bestIdx;
+
+  // Collect candidates (due or all), then shuffle
+  const candidates = state.facts
+    .map((f,i)=> ({i, due:f.dueDay}))
+    .filter(x => !dueOnly || x.due <= today);
+  if (!candidates.length) return -1;
+  shuffleInPlace(candidates);
+  return candidates[0].i;
 }
+
+/* ----- Stats text ----- */
 function accuracyStr(){ const t=state.stats.answeredToday||0, c=state.stats.correctToday||0; if(!t) return '–'; return Math.round(100*c/t)+'%'; }
 function nextDueInStr(){ const today=daySerial(); const idx=pickNext(false); if(idx<0) return '–'; const d=state.facts[idx].dueDay - today; if(d<=0) return 'now'; return d===1?'1 day':d+' days'; }
 function countDue(){ const today=daySerial(); return state.facts.reduce((n,f)=> n + (f.dueDay<=today?1:0), 0); }
@@ -446,7 +493,7 @@ function updateDoneCardMessage(){
   }
 }
 
-/* ----- UI helpers ----- */
+/* ----- Pause helper ----- */
 function setPaused(p){
   state.ui.paused = p;
   document.getElementById('pauseBtn').textContent = p ? 'Resume' : 'Pause';
@@ -467,8 +514,7 @@ function showCard(idx){
     document.getElementById('keypad').style.display   = '';
     document.getElementById('choicesRow').style.display = 'none';
     const input = document.getElementById('answerInput');
-    input.value = ''; input.disabled = false; input.focus({preventScroll:true}); // prevent jump; we’ll scroll manually
-    // keep input visible above the iOS keyboard
+    input.value = ''; input.disabled = false; input.focus({preventScroll:true});
     setTimeout(()=> input.scrollIntoView({block:'center', behavior:'smooth'}), 50);
   } else {
     document.getElementById('typingRow').style.display = 'none';
@@ -507,12 +553,13 @@ function buildChoices(a,b,size){
         btn.classList.add('good'); setTimeout(()=> btn.classList.remove('good'), 220);
       } else {
         playWrongBuzz();
-        btn.classList.add('bad');
+        btn.classList.add('bad'); // keep red
         const correctBtn = Array.from(row.querySelectorAll('button')).find(b => b.dataset.correct === 'true');
         if (correctBtn){
-          correctBtn.classList.add('good','flash-correct');
-          setTimeout(()=> correctBtn.classList.remove('good','flash-correct'), 5000);
+          correctBtn.classList.add('good','flash-correct');            // flash correct
+          setTimeout(()=> correctBtn.classList.remove('good','flash-correct'), 5000); // keep for 5s
         }
+        // lock inputs during the 5s reveal
         row.querySelectorAll('button').forEach(b => b.disabled = true);
         document.getElementById('pauseBtn').disabled = true;
         document.getElementById('stopBtn').disabled  = true;
@@ -522,7 +569,7 @@ function buildChoices(a,b,size){
         document.getElementById('pauseBtn').disabled = false;
         document.getElementById('stopBtn').disabled  = false;
         step();
-      }, isCorrect ? 320 : 5000);
+      }, isCorrect ? 320 : 5000); 
     };
     row.appendChild(btn);
   });
@@ -550,25 +597,48 @@ function logToday(a,b,correct,answer,correctAns,reason){
 function updateSRS(correct, givenVal, reason){
   const idx = state.ui.currentIndex; if (idx < 0) return;
   const f = state.facts[idx]; const today = daySerial();
+
   if (state.firstPassQueue.length && state.firstPassQueue[0] === idx){ state.firstPassQueue.shift(); }
+
   f.timesSeen += 1; f.lastDay = today;
+
   if (correct){
-    f.streak += 1;
-    if (f.streak === 1) f.interval = 1;
-    else if (f.streak === 2) f.interval = 6;
-    else f.interval = Math.max(1, Math.round(f.interval * f.ease));
-    f.ease = Math.min(3.0, +(f.ease + 0.05).toFixed(2));
-    f.dueDay = today + f.interval; f.totalCorrect += 1;
+		if (f.streak === 1) f.interval = 1;
+		else if (f.streak === 2) f.interval = 2;
+		else if (f.streak === 3) f.interval = 3;
+		else if (f.streak === 4) f.interval = 4;
+		else if (f.streak === 5) f.interval = 5;
+		else if (f.streak === 6) f.interval = 6;
+		else f.interval = 7; // cap at 7 days
+		f.ease = Math.min(3.0, +(f.ease + 0.02).toFixed(2));
+		f.dueDay = today + f.interval;
+
   } else {
-    f.streak = 0; f.ease = Math.max(1.3, +(f.ease - 0.20).toFixed(2));
-    f.interval = 1; f.dueDay = today; f.totalWrong += 1;
+		f.streak = 0;
+		f.ease = Math.max(1.3, +(f.ease - 0.10).toFixed(2));
+		f.interval = 0;
+		f.dueDay = today;
   }
-  state.stats.answeredToday += 1; state.stats.totalAnswered += 1;
-  if (correct){ state.stats.correctToday += 1; state.stats.totalCorrect += 1; }
-  logToday(f.a, f.b, correct, givenVal, f.a*f.b, reason); save();
+
+  state.stats.answeredToday += 1;
+  if (correct){ state.stats.correctToday += 1; }
+
+  logToday(f.a, f.b, correct, givenVal, f.a*f.b, reason);
+  save();
 }
 
 /* ----- Session loop ----- */
+function ensureDayRollover(){
+  const today = daySerial();
+  if (state.stats.lastDay !== today){
+    state.stats.lastDay = today;
+    state.stats.answeredToday = 0;
+    state.stats.correctToday = 0;
+    state.stats.badAnswersToday = {};
+    state.stats.logsToday = [];
+    save();
+  }
+}
 function step(){
   ensureDayRollover(); renderStats();
   const idx = pickNext(true);
@@ -600,7 +670,7 @@ function openDailyReport(){
 function daysUntil(dueDay){ return dueDay - daySerial(); }
 function openDeckReport(sortKey='q', asc=true){
   const tbody = document.querySelector('#deckTable tbody');
-  const rows = state.facts.map((f,i)=>({ i, q:`${f.a}×${f.b}`, a:f.a, b:f.b, streak:f.streak, ease:+f.ease.toFixed(2), interval:f.interval, due:daysUntil(f.dueDay), seen:f.timesSeen, tc:f.totalCorrect, tw:f.totalWrong }));
+  const rows = state.facts.map((f,i)=>({ i, q:`${f.a}×${f.b}`, a:f.a, b:f.b, streak:f.streak, ease:+f.ease.toFixed(2), interval:f.interval, due:daysUntil(f.dueDay), seen:f.timesSeen, tc:f.totalCorrect||0, tw:f.totalWrong||0 }));
   const cmp = (a,b,k)=> k==='q' ? (a.a===b.a? a.b-b.b : a.a-b.a) : (a[k]===b[k]?0:(a[k]<b[k]?-1:1));
   rows.sort((a,b)=> asc?cmp(a,b,sortKey):-cmp(a,b,sortKey));
   tbody.innerHTML = rows.map(r=> `<tr>
@@ -617,20 +687,25 @@ function openDeckReport(sortKey='q', asc=true){
 const profileSelect  = document.getElementById('profileSelect');
 const addProfileBtn  = document.getElementById('addProfileBtn');
 const delProfileBtn  = document.getElementById('delProfileBtn');
-
 function refreshProfileSelect(){
   const list = loadProfilesList(); const cur = currentProfile;
   profileSelect.innerHTML = ''; list.forEach(name=>{ const opt=document.createElement('option'); opt.value=name; opt.textContent=name; if(name===cur) opt.selected=true; profileSelect.appendChild(opt); });
   delProfileBtn.disabled = (list.length <= 1);
 }
-
 profileSelect.addEventListener('change', ()=>{
-  save(); const nextProfile = profileSelect.value; setCurrentProfile(nextProfile);
+  save(); 
+  const nextProfile = profileSelect.value;
+  setCurrentProfile(nextProfile);
+
   if (!load()){ resetDeck(+document.getElementById('tableSize').value || 12); save(); }
-  document.getElementById('tableSize').value = state.size || 12;
-  document.getElementById('modeSelect').value = state.settings.mode || 'typing';
+
+  document.getElementById('tableSize').value   = state.size   || 12;
+  document.getElementById('modeSelect').value  = state.settings.mode  || 'typing';
   document.getElementById('timerSelect').value = state.settings.timer || 'off';
-  renderStats(); updateDoneCardMessage();
+
+  refreshProfileSelect();
+  renderStats();
+  updateDoneCardMessage();
   if (document.getElementById('quizCard').style.display !== 'none'){ step(); }
 });
 
@@ -643,7 +718,6 @@ addProfileBtn.addEventListener('click', ()=>{
   resetDeck(+document.getElementById('tableSize').value || 12); save();
   refreshProfileSelect(); renderStats(); updateDoneCardMessage();
 });
-
 delProfileBtn.addEventListener('click', ()=>{
   const list = loadProfilesList(); if (list.length <= 1){ alert('You need at least one profile.'); return; }
   if (!confirm(`Delete profile “${currentProfile}”? This removes its progress permanently.`)) return;
@@ -655,6 +729,21 @@ delProfileBtn.addEventListener('click', ()=>{
   clearTimer(); document.getElementById('quizCard').style.display='none'; document.getElementById('doneCard').style.display='';
 });
 
+const tableSizeSelect = document.getElementById('tableSize');
+tableSizeSelect.addEventListener('change', ()=>{
+  const newSize = +tableSizeSelect.value;
+  if (state.size !== newSize){
+    if (confirm(`Rebuild deck for ${newSize}×${newSize}? This resets progress for this profile.`)){
+      resetDeck(newSize);
+    } else {
+      tableSizeSelect.value = state.size;
+    }
+  }
+  save();
+});
+
+
+/* Start / Stop / Pause */
 document.getElementById('startBtn').addEventListener('click', ()=>{
   const size = +document.getElementById('tableSize').value;
   if (state.facts.length === 0 || state.size !== size){
@@ -663,48 +752,37 @@ document.getElementById('startBtn').addEventListener('click', ()=>{
   }
   step();
 });
+document.getElementById('pauseBtn').addEventListener('click', ()=>{ ensureAudio(); setPaused(!state.ui.paused); });
+document.getElementById('stopBtn').addEventListener('click', ()=>{
+  clearTimer(); document.getElementById('quizCard').style.display='none'; updateDoneCardMessage(); document.getElementById('doneCard').style.display='';
+});
 
-// Typing submit
+/* Typing mode */
 document.getElementById('submitBtn').addEventListener('click', ()=>{
   if (state.ui.paused) return;
   const idx = state.ui.currentIndex; if (idx < 0) return; const f = state.facts[idx];
   const val = +document.getElementById('answerInput').value;
   clearTimer(); const correct = (val === f.a * f.b);
   updateSRS(correct, val); flashSubmit(correct);
-  setTimeout(()=>{ step(); }, 250);
+  setTimeout(()=>{ step(); }, correct ? 250 : 600);
 });
-
-// I don't know
 document.getElementById('dontKnowBtn').addEventListener('click', ()=>{
   if (state.ui.paused) return; clearTimer(); updateSRS(false, NaN); playWrongBuzz(); step();
 });
-
-// Keypad
 document.getElementById('keypad').addEventListener('click', (e)=>{
-  if (state.ui.paused) return; const k = e.target?.dataset?.k; if (!k) return;
+  if (state.ui.paused) return;
+  const k = e.target?.dataset?.k; if (!k) return;
   const input = document.getElementById('answerInput');
   if (k==='←'){ input.value = input.value.slice(0,-1); }
   else if (k==='⏎'){ document.getElementById('submitBtn').click(); }
   else { input.value += k; }
   input.focus({preventScroll:true});
 });
-
-// Enter submits
 document.getElementById('answerInput').addEventListener('keydown', (e)=>{
   if (e.key === 'Enter'){ document.getElementById('submitBtn').click(); }
 });
 
-// Pause / Resume
-document.getElementById('pauseBtn').addEventListener('click', ()=>{
-  ensureAudio(); setPaused(!state.ui.paused);
-});
-
-// Stop session
-document.getElementById('stopBtn').addEventListener('click', ()=>{
-  clearTimer(); document.getElementById('quizCard').style.display='none'; updateDoneCardMessage(); document.getElementById('doneCard').style.display='';
-});
-
-// Practice anyway
+/* Practice anyway */
 document.getElementById('practiceAnywayBtn').addEventListener('click', ()=>{
   const idx = pickNext(false);
   if (idx >= 0){
@@ -715,35 +793,7 @@ document.getElementById('practiceAnywayBtn').addEventListener('click', ()=>{
   }
 });
 
-// Reset / Export / Import
-const ioBox = document.getElementById('ioBox'); const ioText = document.getElementById('ioText');
-document.getElementById('resetBtn').addEventListener('click', ()=>{
-  if (!confirm('Reset all progress and rebuild the deck?')) return;
-  clearTimer(); resetDeck(+document.getElementById('tableSize').value); save(); step();
-});
-document.getElementById('exportBtn').addEventListener('click', ()=>{
-  ioBox.style.display = '';
-  ioText.value = JSON.stringify(state, null, 2);
-  ioText.placeholder = `Exported JSON for profile: ${currentProfile}`;
-  ioText.select();
-});
-document.getElementById('importBtn').addEventListener('click', ()=>{
-  ioBox.style.display = '';
-  ioText.value = '';
-  ioText.placeholder = `Paste JSON for profile: ${currentProfile}, then confirm.`;
-  setTimeout(()=>{
-    if (!confirm(`Import JSON into profile “${currentProfile}”? This overwrites its progress.`)) return;
-    try{
-      const obj = JSON.parse(ioText.value);
-      if (!obj || !Array.isArray(obj.facts)) throw new Error('Invalid JSON (missing facts)');
-      localStorage.setItem(storageKeyFor(currentProfile), JSON.stringify(obj));
-      load(); alert('Imported. Reloading.'); step();
-    }catch(e){ alert('Import failed: ' + e.message); }
-  }, 50);
-});
-document.getElementById('ioClose').addEventListener('click', ()=> ioBox.style.display = 'none');
-
-// Reports open/close
+/* Reports open/close */
 document.getElementById('dailyReportBtn').addEventListener('click', openDailyReport);
 document.getElementById('deckReportBtn').addEventListener('click', ()=>openDeckReport('q', true));
 document.getElementById('closeDaily').addEventListener('click', ()=> document.getElementById('dailyModal').style.display='none');
@@ -751,7 +801,7 @@ document.getElementById('closeDeck').addEventListener('click', ()=> document.get
 document.getElementById('dailyModal').addEventListener('click', (e)=>{ if(e.target.id==='dailyModal') e.currentTarget.style.display='none'; });
 document.getElementById('deckModal').addEventListener('click', (e)=>{ if(e.target.id==='deckModal') e.currentTarget.style.display='none'; });
 
-// Settings selectors
+/* Settings selectors */
 const modeSelect  = document.getElementById('modeSelect');
 const timerSelect = document.getElementById('timerSelect');
 modeSelect.addEventListener('change', ()=>{
@@ -763,20 +813,68 @@ timerSelect.addEventListener('change', ()=>{
   if (document.getElementById('quizCard').style.display !== 'none'){ startTimer(); }
 });
 
-/* ----- Boot ----- */
+/* Export / Import — fixed flow */
+const ioBox   = document.getElementById('ioBox');
+const ioText  = document.getElementById('ioText');
+const ioFooter= document.getElementById('ioFooter');
+
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  ioBox.style.display = '';
+  ioText.value = JSON.stringify(state, null, 2);
+  ioText.placeholder = `Exported JSON for profile: ${currentProfile}`;
+  ioText.scrollTop = 0;
+  ioFooter.innerHTML = `<button id="ioClose" class="ghost">Close</button>`;
+  document.getElementById('ioClose').onclick = ()=> ioBox.style.display='none';
+});
+
+document.getElementById('importBtn').addEventListener('click', ()=>{
+  ioBox.style.display = '';
+  ioText.value = '';
+  ioText.placeholder = `Paste JSON for profile: ${currentProfile}, then press “Import now”.`;
+  ioFooter.innerHTML = `
+    <button id="confirmImportBtn" class="good">Import now</button>
+    <button id="cancelImportBtn" class="ghost">Cancel</button>
+  `;
+  document.getElementById('confirmImportBtn').onclick = ()=>{
+    try{
+      const obj = JSON.parse(ioText.value);
+      if (!obj || !Array.isArray(obj.facts)) throw new Error('Invalid JSON (missing "facts" array).');
+      localStorage.setItem(storageKeyFor(currentProfile), JSON.stringify(obj));
+      load();
+      alert(`Import successful for profile “${currentProfile}”.`);
+      ioBox.style.display = 'none';
+      renderStats(); updateDoneCardMessage(); step();
+    }catch(e){
+      alert('Import failed: ' + e.message);
+    }
+  };
+  document.getElementById('cancelImportBtn').onclick = ()=> { ioBox.style.display='none'; };
+});
+document.getElementById('ioClose').addEventListener('click', ()=> ioBox.style.display='none');
+
+/* Boot */
 (function init(){
   ensureAtLeastOneProfile();
   const loaded = load();
   if (!loaded) resetDeck(+document.getElementById('tableSize').value || 12);
-  ensureDayRollover(); renderStats();
+
   // reflect settings
   document.getElementById('modeSelect').value  = state.settings.mode || 'typing';
   document.getElementById('timerSelect').value = state.settings.timer || 'off';
   document.getElementById('tableSize').value   = state.size || 12;
+
   refreshProfileSelect();
+  renderStats();
+  updateDoneCardMessage(); 
+
+  const due = countDue();
+  document.getElementById('quizCard').style.display = 'none';
+  document.getElementById('doneCard').style.display = '';
+  if (due > 0) {
+    document.querySelector('#doneCard .bigQ').textContent = 'Items due today';
+  }
 })();
 
-// iOS: resume audio after first gesture anywhere
 window.addEventListener('touchend', ()=>{ if(audioCtx && audioCtx.state==='suspended'){ audioCtx.resume(); } }, {passive:true});
 </script>
 </body>
