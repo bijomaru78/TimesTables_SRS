@@ -346,7 +346,7 @@ const state = {
 /* ----- Audio ----- */
 let audioCtx = null;
 function ensureAudio(){ if(!audioCtx){ const AC = window.AudioContext || window.webkitAudioContext; audioCtx = new AC(); } }
-function beep({freq=440, dur=0.12, type='sine', gain=0.08}={}){
+function beep({freq=440, dur=0.12, type='sine', gain=0.2}={}){
   ensureAudio();
   const t0 = audioCtx.currentTime;
   const osc = audioCtx.createOscillator();
@@ -362,8 +362,8 @@ function playCorrectChime(){
   ensureAudio();
   const t = audioCtx.currentTime;
   const seq = [
-    {freq: 880,  t: t,      dur:0.10, type:'sine', gain:0.08},
-    {freq: 1175, t: t+0.10, dur:0.12, type:'sine', gain:0.08},
+    {freq: 880,  t: t,      dur:0.10, type:'sine', gain:0.2},
+    {freq: 1175, t: t+0.10, dur:0.12, type:'sine', gain:0.2},
   ];
   seq.forEach(n=>{
     const osc = document.createElement('audioCtxOsc') && audioCtx.createOscillator();
@@ -375,7 +375,7 @@ function playCorrectChime(){
     o.start(n.t); o.stop(n.t + n.dur + 0.02);
   });
 }
-function playWrongBuzz(){ ensureAudio(); beep({freq:220, dur:0.09, type:'square', gain:0.08}); setTimeout(()=> beep({freq:196, dur:0.09, type:'square', gain:0.07}), 80); }
+function playWrongBuzz(){ ensureAudio(); beep({freq:220, dur:0.09, type:'square', gain:0.08}); setTimeout(()=> beep({freq:196, dur:0.09, type:'square', gain:0.2}), 80); }
 
 /* ----- Timer ----- */
 let timerId = null; let timeLeft = 0;
@@ -792,6 +792,22 @@ document.getElementById('practiceAnywayBtn').addEventListener('click', ()=>{
     showCard(idx);
   }
 });
+
+document.getElementById('resetBtn').onclick = () => {
+  const size = +document.getElementById('tableSize').value || 12;
+  if (!confirm(`Reset the ${size}×${size} deck for profile “${currentProfile}”? This will erase progress.`)) return;
+
+  resetDeck(size);
+  save();
+  renderStats();
+  updateDoneCardMessage();
+
+  document.getElementById('quizCard').style.display = 'none';
+  document.getElementById('doneCard').style.display = '';
+
+  alert(`✅ ${size}×${size} deck reset for ${currentProfile}.`);
+};
+
 
 /* Reports open/close */
 document.getElementById('dailyReportBtn').addEventListener('click', openDailyReport);
